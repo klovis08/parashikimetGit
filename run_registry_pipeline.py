@@ -48,6 +48,8 @@ class StageMetrics:
     validate_broad: int | None = None
     validate_strict: int | None = None
     validate_invariant_violations: int | None = None
+    feedback_labels_total: int | None = None
+    feedback_labels_used: int | None = None
     exit_code: int = 0
     error_message: str | None = None
     alert_sent: bool = False
@@ -219,6 +221,16 @@ def main() -> int:
         "--skip-validate",
         action="store_true",
         help="Do not run export_registry validate",
+    )
+    ap.add_argument(
+        "--feedback-report-json",
+        default="",
+        help="Optional output path for feedback_loop.py report JSON artifact",
+    )
+    ap.add_argument(
+        "--feedback-report-csv",
+        default="",
+        help="Optional output path for feedback_loop.py report CSV artifact",
     )
     ap.add_argument(
         "--ingest-attempts",
@@ -487,6 +499,45 @@ def main() -> int:
                 "strict_rows": m.validate_strict,
                 "classification_invariant_violations": m.validate_invariant_violations,
             },
+        )
+
+    if args.feedback_report_json or args.feedback_report_csv:
+        fb_argv = [
+            str(Path(args.python).resolve()) if args.python else sys.executable,
+            str(workdir / "feedback_loop.py"),
+            "report",
+            "--db",
+            str(args.db),
+        ]
+        if args.feedback_report_json:
+            fb_argv.extend(["--out-json", str(args.feedback_report_json)])
+        if args.feedback_report_csv:
+            fb_argv.extend(["--out-csv", str(args.feedback_report_csv)])
+        fb = _run_with_sqlite_lock_retries(
+            fb_argv,
+            log,
+            "feedback_report",
+            workdir,
+            max_attempts=lock_retries,
+            base_delay_sec=args.lock_retry_delay,
+        )
+        if fb.returncode != 0:
+            return fail(
+                "feedback_report",
+                fb.returncode,
+                f"feedback report failed rc={fb.returncode} out={fb.stdout!r} err={fb.stderr!r}",
+            )
+        try:
+            fb_out = _parse_json_object(fb.stdout or "")
+        except ValueError as e:
+            return fail("feedback_report", 8, f"parse feedback report: {e}")
+        m.feedback_labels_total = int(fb_out.get("labels_total", 0))
+        m.feedback_labels_used = int(fb_out.get("labels_used_for_metrics", 0))
+        notice(
+            "feedback_report",
+            "ok",
+            labels_total=m.feedback_labels_total,
+            labels_used=m.feedback_labels_used,
         )
 
     m.finished_at = _utc_now_iso()

@@ -46,5 +46,24 @@
     "\\brrjet\\w*\\b",
     "\\bteknologji\\b"
   ],
-  "near_miss_cpv_prefixes": ["302", "324", "325", "480", "722"]
+  "near_miss_cpv_prefixes": ["302", "324", "325", "480", "722"],
+  "scoring": {
+    "scale": { "min": 0, "max": 100 },
+    "weights": {
+      "broad_bonus": 4,
+      "strict_bonus": 8,
+      "include_keyword_hit": 14,
+      "include_cpv_hit": 18,
+      "exclude_keyword_hit": -16,
+      "exclude_cpv_hit": -22,
+      "mixed_bundle_bonus": 10,
+      "near_keyword_hit": 8,
+      "near_cpv_hit": 10
+    },
+    "confidence_thresholds": {
+      "high": 70,
+      "medium": 45
+    },
+    "top_signal_count": 3
+  }
 }

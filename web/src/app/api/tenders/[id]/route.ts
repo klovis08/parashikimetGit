@@ -4,6 +4,7 @@ import {
   classifySoftwareBroad,
   classifySoftwareStrict,
 } from "@/lib/registryClassifier";
+import { getLabelsForTender } from "@/lib/feedbackLabels";
 import { getTenderDetailById } from "@/lib/queryTenders";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export async function GET(
     };
     const broad = classifySoftwareBroad(classifierInput);
     const strict = classifySoftwareStrict(classifierInput);
+    const labels = getLabelsForTender(id, 10);
 
     return NextResponse.json({
       tender: row,
@@ -55,6 +57,7 @@ export async function GET(
         broad_reasons: broad.reasons,
         strict_excluded_reasons: strict.excludedReasons,
       },
+      analyst_labels: labels,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "query failed";

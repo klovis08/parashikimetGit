@@ -1,7 +1,11 @@
 import type { TenderRecord } from "./tenderColumns";
 import { SELECT_LIST } from "./tenderColumns";
 import { getDb, rowToTenderRecord } from "./db";
-import { matchesSoftwareFilter } from "./registryClassifier";
+import {
+  classifySoftwareScored,
+  type ConfidenceTier,
+  matchesSoftwareFilter,
+} from "./registryClassifier";
 
 export type SoftwareFilterMode = "none" | "broad" | "strict" | "near_miss";
 
@@ -15,7 +19,18 @@ export interface TendersQuery {
   page: number;
   pageSize: number;
   sort: SortKey;
+  confidence?: ConfidenceTier;
 }
+
+export interface TenderSoftwareMeta {
+  score: number;
+  confidence: ConfidenceTier;
+  topSignals: string[];
+}
+
+export type TenderListItem = TenderRecord & {
+  softwareMeta?: TenderSoftwareMeta;
+};
 
 /** Escape % and _ for SQL LIKE with ESCAPE '\' */
 export function escapeLikeLiteral(s: string): string {
@@ -58,11 +73,40 @@ function buildWhereClause(query: TendersQuery): { sql: string; params: unknown[]
 }
 
 export interface TendersPageResult {
-  items: TenderRecord[];
+  items: TenderListItem[];
   total: number;
   page: number;
   pageSize: number;
   sort: SortKey;
+}
+
+function confidenceRank(confidence: ConfidenceTier): number {
+  if (confidence === "high") return 3;
+  if (confidence === "medium") return 2;
+  return 1;
+}
+
+export function compareSoftwarePriority(
+  a: TenderListItem,
+  b: TenderListItem,
+  sort: SortKey,
+): number {
+  const aMeta = a.softwareMeta;
+  const bMeta = b.softwareMeta;
+  const aRank = aMeta ? confidenceRank(aMeta.confidence) : 0;
+  const bRank = bMeta ? confidenceRank(bMeta.confidence) : 0;
+  if (bRank !== aRank) return bRank - aRank;
+  const aScore = aMeta?.score ?? 0;
+  const bScore = bMeta?.score ?? 0;
+  if (bScore !== aScore) return bScore - aScore;
+  const aDate = a.data_iso ?? "";
+  const bDate = b.data_iso ?? "";
+  if (aDate !== bDate) {
+    return sort === "publication_asc"
+      ? aDate.localeCompare(bDate)
+      : bDate.localeCompare(aDate);
+  }
+  return sort === "publication_asc" ? a.id - b.id : b.id - a.id;
 }
 
 export function queryTendersPage(query: TendersQuery): TendersPageResult {
@@ -99,19 +143,30 @@ export function queryTendersPage(query: TendersQuery): TendersPageResult {
     .prepare(`SELECT ${SELECT_LIST} FROM tenders ${whereSql} ${orderSql}`);
 
   const offset = (query.page - 1) * query.pageSize;
-  const items: TenderRecord[] = [];
-  let total = 0;
+  const filtered: TenderListItem[] = [];
   for (const row of allRows.iterate(...whereParams) as Iterable<
     Record<string, unknown>
   >) {
     const rec = rowToTenderRecord(row);
-    if (matchesSoftwareFilter(rec, query.software)) {
-      total += 1;
-      if (total > offset && items.length < query.pageSize) {
-        items.push(rec);
-      }
+    if (!matchesSoftwareFilter(rec, query.software)) {
+      continue;
     }
+    const scored = classifySoftwareScored(rec);
+    if (query.confidence && scored.confidence !== query.confidence) {
+      continue;
+    }
+    filtered.push({
+      ...rec,
+      softwareMeta: {
+        score: scored.score,
+        confidence: scored.confidence,
+        topSignals: scored.topSignals,
+      },
+    });
   }
+  filtered.sort((a, b) => compareSoftwarePriority(a, b, query.sort));
+  const total = filtered.length;
+  const items = filtered.slice(offset, offset + query.pageSize);
 
   return {
     items,

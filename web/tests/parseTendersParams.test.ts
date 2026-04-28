@@ -42,3 +42,17 @@ test("parseTendersSearchParams caps pageSize to max", () => {
   if (!parsed.ok) return;
   assert.equal(parsed.value.pageSize, 100);
 });
+
+test("parseTendersSearchParams parses confidence filter", () => {
+  const sp = new URLSearchParams({ confidence: "medium" });
+  const parsed = parseTendersSearchParams(sp);
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.confidence, "medium");
+});
+
+test("parseTendersSearchParams rejects invalid confidence filter", () => {
+  const sp = new URLSearchParams({ confidence: "urgent" });
+  const parsed = parseTendersSearchParams(sp);
+  assert.equal(parsed.ok, false);
+});

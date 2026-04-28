@@ -15,7 +15,7 @@ from typing import Any, Iterator
 from registry_hash import compute_source_hash
 from registry_parse import COLUMNS
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def utc_now_iso() -> str:
@@ -116,6 +116,26 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_tenders_data_iso ON tenders (data_iso);
         CREATE INDEX IF NOT EXISTS idx_tenders_viti ON tenders (viti);
+
+        CREATE TABLE IF NOT EXISTS analyst_labels (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tender_id INTEGER NOT NULL,
+          label TEXT NOT NULL CHECK (label IN ('relevant', 'not_relevant', 'maybe')),
+          reviewer TEXT,
+          note TEXT,
+          created_at TEXT NOT NULL,
+          snapshot_score INTEGER NOT NULL,
+          snapshot_confidence TEXT NOT NULL,
+          snapshot_top_signals_json TEXT NOT NULL,
+          snapshot_broad_ok INTEGER NOT NULL,
+          snapshot_strict_ok INTEGER NOT NULL,
+          snapshot_near_miss_ok INTEGER NOT NULL,
+          snapshot_reasons_json TEXT NOT NULL,
+          FOREIGN KEY (tender_id) REFERENCES tenders (id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_analyst_labels_tender_id_created_at
+        ON analyst_labels (tender_id, created_at DESC);
         """
     )
     row = conn.execute(
@@ -124,6 +144,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
     if row is None:
         conn.execute(
             "INSERT INTO schema_meta (key, value) VALUES ('version', ?)",
+            (str(SCHEMA_VERSION),),
+        )
+    elif int(row["value"]) < SCHEMA_VERSION:
+        conn.execute(
+            "UPDATE schema_meta SET value = ? WHERE key = 'version'",
             (str(SCHEMA_VERSION),),
         )
     conn.commit()
@@ -262,3 +287,96 @@ def iter_tenders_dicts(conn: sqlite3.Connection) -> Iterator[dict[str, str]]:
     select_sql = f"SELECT {', '.join(COLUMNS)} FROM tenders ORDER BY data_iso, id"
     for r in conn.execute(select_sql):
         yield {k: (r[k] if r[k] is not None else "") for k in COLUMNS}
+
+
+def insert_analyst_label(
+    conn: sqlite3.Connection,
+    *,
+    tender_id: int,
+    label: str,
+    reviewer: str | None,
+    note: str | None,
+    snapshot_score: int,
+    snapshot_confidence: str,
+    snapshot_top_signals: list[str],
+    snapshot_broad_ok: bool,
+    snapshot_strict_ok: bool,
+    snapshot_near_miss_ok: bool,
+    snapshot_reasons: dict[str, list[str]],
+) -> int:
+    created_at = utc_now_iso()
+    cur = conn.execute(
+        """
+        INSERT INTO analyst_labels (
+          tender_id, label, reviewer, note, created_at,
+          snapshot_score, snapshot_confidence, snapshot_top_signals_json,
+          snapshot_broad_ok, snapshot_strict_ok, snapshot_near_miss_ok,
+          snapshot_reasons_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(tender_id),
+            label,
+            reviewer,
+            note,
+            created_at,
+            int(snapshot_score),
+            snapshot_confidence,
+            json.dumps(snapshot_top_signals, ensure_ascii=False),
+            1 if snapshot_broad_ok else 0,
+            1 if snapshot_strict_ok else 0,
+            1 if snapshot_near_miss_ok else 0,
+            json.dumps(snapshot_reasons, ensure_ascii=False),
+        ),
+    )
+    return int(cur.lastrowid)
+
+
+def list_analyst_labels(
+    conn: sqlite3.Connection,
+    *,
+    tender_id: int | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    params: list[Any] = []
+    where = ""
+    if tender_id is not None:
+        where = "WHERE tender_id = ?"
+        params.append(int(tender_id))
+    params.append(max(1, int(limit)))
+    rows = conn.execute(
+        f"""
+        SELECT
+          id, tender_id, label, reviewer, note, created_at,
+          snapshot_score, snapshot_confidence, snapshot_top_signals_json,
+          snapshot_broad_ok, snapshot_strict_ok, snapshot_near_miss_ok,
+          snapshot_reasons_json
+        FROM analyst_labels
+        {where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        tuple(params),
+    ).fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        out.append(
+            {
+                "id": int(r["id"]),
+                "tender_id": int(r["tender_id"]),
+                "label": str(r["label"]),
+                "reviewer": r["reviewer"],
+                "note": r["note"],
+                "timestamp": str(r["created_at"]),
+                "snapshot": {
+                    "score": int(r["snapshot_score"]),
+                    "confidence": str(r["snapshot_confidence"]),
+                    "top_signals": json.loads(r["snapshot_top_signals_json"] or "[]"),
+                    "broad_ok": bool(r["snapshot_broad_ok"]),
+                    "strict_ok": bool(r["snapshot_strict_ok"]),
+                    "near_miss_ok": bool(r["snapshot_near_miss_ok"]),
+                    "reasons": json.loads(r["snapshot_reasons_json"] or "{}"),
+                },
+            }
+        )
+    return out

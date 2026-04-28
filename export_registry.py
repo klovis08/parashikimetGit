@@ -22,6 +22,7 @@ from pathlib import Path
 
 from registry_classifier import (
     classify_software_broad,
+    classify_software_scored,
     classify_near_miss,
     classify_software_strict,
     hardware_repair_exclusion_signals,
@@ -42,9 +43,15 @@ def _file_names_for_year(year: str) -> dict[str, str]:
         "software_qc": f"registry_{y}_software_qc.csv",
         "software_strict_qc": f"registry_{y}_software_strict_qc.csv",
         "software_near_miss": f"registry_{y}_software_near_miss.csv",
+        "software_review_queue": f"registry_{y}_software_review_queue.csv",
     }
 
-SOFTWARE_EXTRA_COLS = ["software_match_reason", "software_match_score"]
+SOFTWARE_EXTRA_COLS = [
+    "software_match_reason",
+    "software_match_score",
+    "software_confidence",
+    "software_top_signals",
+]
 QC_FIELDNAMES = [
     "objekti_procedurave",
     "autoriteti_kontraktues",
@@ -58,8 +65,11 @@ def _software_out_fields() -> list[str]:
 
 
 def _attach_software_metadata(row: dict[str, str], reasons: list[str]) -> None:
+    scored = classify_software_scored(row)
     row["software_match_reason"] = " | ".join(reasons)
-    row["software_match_score"] = str(len(reasons))
+    row["software_match_score"] = str(scored["score"])
+    row["software_confidence"] = str(scored["confidence"])
+    row["software_top_signals"] = " | ".join(scored["top_signals"])
 
 
 def export_all(db_path: str | Path, out_dir: str | Path, year: str) -> dict[str, int]:
@@ -81,9 +91,11 @@ def export_all(db_path: str | Path, out_dir: str | Path, year: str) -> dict[str,
     path_qc = out_dir / file_names["software_qc"]
     path_strict_qc = out_dir / file_names["software_strict_qc"]
     path_near_miss = out_dir / file_names["software_near_miss"]
+    path_review_queue = out_dir / file_names["software_review_queue"]
 
     out_fields = _software_out_fields()
     qc_rows: list[dict[str, str]] = []
+    review_rows: list[dict[str, str]] = []
 
     n_full = 0
     n_broad = 0
@@ -151,6 +163,14 @@ def export_all(db_path: str | Path, out_dir: str | Path, year: str) -> dict[str,
                 near_row = {**base}
                 _attach_software_metadata(near_row, near_reasons)
                 w_near_miss.writerow({k: near_row.get(k, "") for k in out_fields})
+                review_rows.append({k: near_row.get(k, "") for k in out_fields})
+            elif broad_ok and excluded:
+                mixed_row = {**base}
+                _attach_software_metadata(
+                    mixed_row,
+                    [f"mixed_it_bundle:{r}" for r in (mixed_reasons if mixed_ok else excl_reasons)],
+                )
+                review_rows.append({k: mixed_row.get(k, "") for k in out_fields})
 
     conn.close()
 
@@ -166,6 +186,20 @@ def export_all(db_path: str | Path, out_dir: str | Path, year: str) -> dict[str,
             if r.get("software_match_score") == "excluded":
                 w_sq.writerow(r)
 
+    conf_rank = {"high": 3, "medium": 2, "low": 1}
+    review_rows.sort(
+        key=lambda r: (
+            -conf_rank.get(r.get("software_confidence", "low"), 1),
+            -int(r.get("software_match_score", "0") or "0"),
+            r.get("data_iso", ""),
+            r.get("row_index_on_page", ""),
+        )
+    )
+    with path_review_queue.open("w", encoding="utf-8-sig", newline="") as fp_rq:
+        w_rq = csv.DictWriter(fp_rq, fieldnames=out_fields)
+        w_rq.writeheader()
+        w_rq.writerows(review_rows)
+
     return {
         "full": n_full,
         "software_broad": n_broad,
@@ -180,6 +214,7 @@ def export_all(db_path: str | Path, out_dir: str | Path, year: str) -> dict[str,
             "software_qc": str(path_qc),
             "software_strict_qc": str(path_strict_qc),
             "software_near_miss": str(path_near_miss),
+            "software_review_queue": str(path_review_queue),
         },
     }
 

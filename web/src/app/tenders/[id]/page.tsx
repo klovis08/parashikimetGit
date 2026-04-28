@@ -7,6 +7,7 @@ import {
   classifySoftwareBroad,
   classifySoftwareStrict,
 } from "@/lib/registryClassifier";
+import { FeedbackLabelForm } from "@/components/FeedbackLabelForm";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,9 @@ export default async function TenderDetailPage({
           </>
         )}
       </p>
+      <div className="panel">
+        <FeedbackLabelForm tenderId={id} />
+      </div>
 
       <div className="panel">
         <dl className="detail">

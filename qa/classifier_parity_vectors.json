@@ -94,5 +94,13 @@
       "kodi_cpv_raw": "",
       "tipi_procedures": ""
     }
+  },
+  {
+    "name": "medium_confidence_near_miss_case",
+    "record": {
+      "objekti_procedurave": "Sistem elektronik per menaxhim dokumentesh",
+      "kodi_cpv_raw": "48000000-8 - Software package and information systems",
+      "tipi_procedures": ""
+    }
   }
 ]

@@ -123,6 +123,42 @@ Single steps (unchanged CLIs):
 
 ---
 
+## Analyst feedback loop tasks
+
+Capture labels via API:
+
+```bash
+curl -X POST "http://localhost:3000/api/tenders/123/labels" \
+  -H "content-type: application/json" \
+  -d '{"label":"relevant","reviewer":"qa","note":"true software scope"}'
+```
+
+Quality metrics report (JSON + CSV artifact for CI/scheduled jobs):
+
+```bash
+./venv/bin/python feedback_loop.py report \
+  --db /var/lib/parashikimet/registry.db \
+  --out-json /var/lib/parashikimet/export/feedback_quality_report.json \
+  --out-csv /var/lib/parashikimet/export/feedback_quality_report.csv
+```
+
+Calibration compare before/after candidate rule changes:
+
+```bash
+./venv/bin/python feedback_loop.py calibrate \
+  --db /var/lib/parashikimet/registry.db \
+  --candidate-rules /opt/parashikimet/classifier_rules_candidate.json \
+  --out-json /var/lib/parashikimet/export/feedback_calibration_compare.json
+```
+
+Explainability drift check (current classifier vs snapshots at review time):
+
+```bash
+./venv/bin/python feedback_loop.py explain --db /var/lib/parashikimet/registry.db --limit 50
+```
+
+---
+
 ## Inspect latest run status
 
 - **Systemd:** `journalctl -u registry-pipeline-daily.service -n 200 --no-pager`

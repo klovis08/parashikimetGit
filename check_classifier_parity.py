@@ -18,6 +18,7 @@ from typing import Any
 from registry_classifier import (
     classify_near_miss,
     classify_software_broad,
+    classify_software_scored,
     classify_software_strict,
     mixed_it_bundle_signal,
 )
@@ -36,6 +37,7 @@ def _py_eval(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
         strict_ok, _strict_broad_reasons, strict_excluded = classify_software_strict(record)
         mixed_ok, mixed_reasons = mixed_it_bundle_signal(record)
         near_ok, near_reasons = classify_near_miss(record)
+        scored = classify_software_scored(record)
         out.append(
             {
                 "name": name,
@@ -47,6 +49,9 @@ def _py_eval(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "mixed_reasons": _normalized_reasons(list(mixed_reasons)),
                 "near_miss_ok": bool(near_ok),
                 "near_miss_reasons": _normalized_reasons(list(near_reasons)),
+                "score": int(scored["score"]),
+                "confidence": str(scored["confidence"]),
+                "top_signals": _normalized_reasons(list(scored["top_signals"])),
             }
         )
     return out
@@ -93,6 +98,9 @@ def _ts_eval(repo_root: Path, vectors_path: Path) -> list[dict[str, Any]]:
                 "mixed_reasons": _normalized_reasons(list(item.get("mixed_reasons") or [])),
                 "near_miss_ok": bool(item.get("near_miss_ok")),
                 "near_miss_reasons": _normalized_reasons(list(item.get("near_miss_reasons") or [])),
+                "score": int(item.get("score") or 0),
+                "confidence": str(item.get("confidence") or ""),
+                "top_signals": _normalized_reasons(list(item.get("top_signals") or [])),
             }
         )
     return out
@@ -129,6 +137,9 @@ def main() -> int:
             "mixed_reasons",
             "near_miss_ok",
             "near_miss_reasons",
+            "score",
+            "confidence",
+            "top_signals",
         ):
             if pr[key] != tr[key]:
                 mismatches.append(

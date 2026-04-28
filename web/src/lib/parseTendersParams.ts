@@ -1,4 +1,5 @@
 import type { SoftwareFilterMode, SortKey, TendersQuery } from "./queryTenders";
+import type { ConfidenceTier } from "./registryClassifier";
 
 const PAGE_SIZE_DEFAULT = 25;
 const PAGE_SIZE_MAX = 100;
@@ -46,6 +47,13 @@ function parseSort(raw: string | null): SortKey | ParseError {
   return { ok: false, error: "invalid sort (use newest or oldest)" };
 }
 
+function parseConfidence(raw: string | null): ConfidenceTier | undefined | ParseError {
+  if (raw == null || raw === "" || raw.toLowerCase() === "any") return undefined;
+  const l = raw.toLowerCase();
+  if (l === "high" || l === "medium" || l === "low") return l;
+  return { ok: false, error: 'confidence must be "high", "medium", "low", or "any"' };
+}
+
 function isParseError(x: unknown): x is ParseError {
   return typeof x === "object" && x !== null && "ok" in x && (x as ParseError).ok === false;
 }
@@ -62,6 +70,8 @@ export function parseTendersSearchParams(
 
   const sortRaw = parseSort(sp.get("sort"));
   if (isParseError(sortRaw)) return sortRaw;
+  const confidenceRaw = parseConfidence(sp.get("confidence"));
+  if (isParseError(confidenceRaw)) return confidenceRaw;
 
   const page = parseInt(sp.get("page") ?? "1", 10);
   if (Number.isNaN(page) || page < 1) {
@@ -89,6 +99,7 @@ export function parseTendersSearchParams(
       page,
       pageSize,
       sort: sortRaw,
+      confidence: confidenceRaw,
     },
   };
 }

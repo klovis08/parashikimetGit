@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import {
   classifyNearMiss,
   classifySoftwareBroad,
+  classifySoftwareScored,
   classifySoftwareStrict,
   mixedItBundleSignal,
 } from "../src/lib/registryClassifier.ts";
@@ -21,6 +22,7 @@ const out = vectors.map((entry) => {
   const strict = classifySoftwareStrict(record);
   const mixed = mixedItBundleSignal(record);
   const nearMiss = classifyNearMiss(record);
+  const scored = classifySoftwareScored(record);
   return {
     name: String(entry?.name ?? ""),
     broad_ok: broad.ok,
@@ -31,6 +33,9 @@ const out = vectors.map((entry) => {
     mixed_reasons: mixed.reasons,
     near_miss_ok: nearMiss.ok,
     near_miss_reasons: nearMiss.reasons,
+    score: scored.score,
+    confidence: scored.confidence,
+    top_signals: scored.topSignals,
   };
 });
 

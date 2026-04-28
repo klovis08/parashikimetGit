@@ -45,6 +45,7 @@ export async function GET(req: Request) {
         authority: parsed.value.authority ?? null,
         cpv: parsed.value.cpv ?? null,
         software: parsed.value.software,
+        confidence: parsed.value.confidence ?? null,
       },
     });
   } catch (e) {

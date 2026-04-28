@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { FeedbackLabelForm } from "./FeedbackLabelForm";
 
 type TenderItem = {
   id: number;
@@ -11,6 +12,11 @@ type TenderItem = {
   ora_publikimit: string;
   fondi_limit_raw: string;
   kodi_cpv_raw: string;
+  softwareMeta?: {
+    score: number;
+    confidence: "high" | "medium" | "low";
+    topSignals: string[];
+  };
 };
 
 type ListResponse = {
@@ -25,6 +31,7 @@ type ListResponse = {
     authority: string | null;
     cpv: string | null;
     software: string;
+    confidence: string | null;
   };
 };
 
@@ -49,6 +56,7 @@ export function SearchHome() {
     "none",
   );
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [confidence, setConfidence] = useState<"any" | "high" | "medium" | "low">("any");
   const [pageSize] = useState(25);
 
   const [data, setData] = useState<ListResponse | null>(null);
@@ -63,6 +71,7 @@ export function SearchHome() {
       authority: string;
       cpv: string;
       software: "none" | "broad" | "strict" | "near_miss";
+      confidence: "any" | "high" | "medium" | "low";
       sort: "newest" | "oldest";
       page: number;
     }) => {
@@ -73,6 +82,7 @@ export function SearchHome() {
       if (opts.authority.trim()) sp.set("authority", opts.authority.trim());
       if (opts.cpv.trim()) sp.set("cpv", opts.cpv.trim());
       if (opts.software !== "none") sp.set("software", opts.software);
+      if (opts.confidence !== "any") sp.set("confidence", opts.confidence);
       sp.set("sort", opts.sort);
       sp.set("page", String(opts.page));
       sp.set("pageSize", String(pageSize));
@@ -101,6 +111,7 @@ export function SearchHome() {
       authority: "",
       cpv: "",
       software: "none",
+      confidence: "any",
       sort: "newest",
       page: 1,
     });
@@ -124,11 +135,11 @@ export function SearchHome() {
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    void runFetch({ q, authority, cpv, software, sort, page: 1 });
+    void runFetch({ q, authority, cpv, software, confidence, sort, page: 1 });
   };
 
   const goPage = (p: number) => {
-    void runFetch({ q, authority, cpv, software, sort, page: p });
+    void runFetch({ q, authority, cpv, software, confidence, sort, page: p });
   };
 
   return (
@@ -196,6 +207,22 @@ export function SearchHome() {
               </select>
             </label>
             <label>
+              Confidence
+              <select
+                value={confidence}
+                onChange={(e) =>
+                  setConfidence(
+                    e.target.value as "any" | "high" | "medium" | "low",
+                  )
+                }
+              >
+                <option value="any">Të gjitha</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label>
               Renditja
               <select
                 value={sort}
@@ -243,6 +270,19 @@ export function SearchHome() {
               <p className="line">
                 <strong>CPV:</strong> {truncateCpv(t.kodi_cpv_raw) || "—"}
               </p>
+              {t.softwareMeta && (
+                <p className="line">
+                  <strong>Confidence:</strong> {t.softwareMeta.confidence.toUpperCase()} ·{" "}
+                  <strong>Score:</strong> {t.softwareMeta.score}
+                  {t.softwareMeta.topSignals.length > 0 && (
+                    <>
+                      {" "}
+                      · <strong>Signals:</strong> {t.softwareMeta.topSignals.slice(0, 2).join(", ")}
+                    </>
+                  )}
+                </p>
+              )}
+              <FeedbackLabelForm tenderId={t.id} />
             </article>
           ))}
 
