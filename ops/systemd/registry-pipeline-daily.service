@@ -1,0 +1,37 @@
+[Unit]
+Description=APP registry: daily ingest, export, validate
+Documentation=file:///opt/parashikimet/ops/RUNBOOK.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=registry
+Group=registry
+WorkingDirectory=/opt/parashikimet
+
+# Europe/Tirane: set system timezone once (see RUNBOOK). Service uses local wall time in logs.
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONUTF8=1
+Environment=REGISTRY_PIPELINE_RUN_ID=
+
+# Optional: curl JSON POST on any stage failure (webhook)
+# Environment=REGISTRY_PIPELINE_ALERT_URL=https://hooks.example.com/registry
+
+# Optional: path to executable that reads JSON from stdin (run_id, stage, message, details)
+# Environment=REGISTRY_PIPELINE_ALERT_CMD=/opt/parashikimet/ops/alert_notify.sh
+
+ExecStart=/opt/parashikimet/venv/bin/python /opt/parashikimet/run_registry_pipeline.py \
+  --workdir /opt/parashikimet \
+  --db /var/lib/parashikimet/registry.db \
+  --out-dir /var/lib/parashikimet/export \
+  --year 2026 \
+  --log-file /var/log/parashikimet/pipeline.log \
+  --log-format text
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=registry-pipeline
+
+# Do not restart in a loop on failure; timer triggers the next day
+SuccessExitStatus=0

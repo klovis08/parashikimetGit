@@ -1,0 +1,98 @@
+[
+  {
+    "name": "pure_software_keyword",
+    "record": {
+      "objekti_procedurave": "Zhvillim software per portalin digjital",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "it_services_cpv",
+    "record": {
+      "objekti_procedurave": "Sherbime IT per sistemin qendror",
+      "kodi_cpv_raw": "72000000-5 - IT services",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "antivirus_with_repair_excluded_from_strict",
+    "record": {
+      "objekti_procedurave": "Mirembajtje antivirus dhe riparim printeresh",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "hardware_cpv_excluded_from_strict",
+    "record": {
+      "objekti_procedurave": "Sherbime IT",
+      "kodi_cpv_raw": "50312000-5 - Riparim pajisjesh kompjuterike",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "neutral_non_it_entry",
+    "record": {
+      "objekti_procedurave": "Blerje materiale pastrimi",
+      "kodi_cpv_raw": "39830000-9 - Cleaning products",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "software_maintenance_strict_allowed",
+    "record": {
+      "objekti_procedurave": "Mirembajtje te software per regjistrin elektronik",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "cpv_48_family",
+    "record": {
+      "objekti_procedurave": "Sistem informacioni",
+      "kodi_cpv_raw": "48219300-9 - Administration software package",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "web_platform_keyword",
+    "record": {
+      "objekti_procedurave": "Ndertim platforme web per aplikime online",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": "Procedure e hapur"
+    }
+  },
+  {
+    "name": "mixed_bundle_it_and_hardware_repair",
+    "record": {
+      "objekti_procedurave": "Zhvillim software dhe riparim laptopesh",
+      "kodi_cpv_raw": "72000000-5 - IT services; 50312000-5 - Repair",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "near_miss_systems_without_strong_it_keyword",
+    "record": {
+      "objekti_procedurave": "Implementim sistemi elektronik per dokumente",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "near_miss_cpv_networking_family",
+    "record": {
+      "objekti_procedurave": "Paisje per rrjetin e institucionit",
+      "kodi_cpv_raw": "32420000-3 - Network equipment",
+      "tipi_procedures": ""
+    }
+  },
+  {
+    "name": "diacritics_and_mojibake_normalization",
+    "record": {
+      "objekti_procedurave": "MirÃ«mbajtje e softuerit pÃ«r portalin dixhital",
+      "kodi_cpv_raw": "",
+      "tipi_procedures": ""
+    }
+  }
+]

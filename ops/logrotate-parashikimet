@@ -1,0 +1,10 @@
+# Install: copy to /etc/logrotate.d/parashikimet (see ops/RUNBOOK.md)
+/var/log/parashikimet/*.log {
+    weekly
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily registry pipeline (Europe/Tirane morning)
+Documentation=file:///opt/parashikimet/ops/RUNBOOK.md
+
+[Timer]
+# After `timedatectl set-timezone Europe/Tirane`, these are local Tirane times.
+OnCalendar=*-*-* 06:15:00
+Persistent=true
+Unit=registry-pipeline-daily.service
+
+[Install]
+WantedBy=timers.target

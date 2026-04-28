@@ -1,0 +1,31 @@
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local editor state
+.vscode/
+
+# Runtime artifacts
+*.log
+pipeline.local.log
+scrape_run.log
+scrape_full.log
+_test_out/
+
+# Generated datasets and databases
+*.db
+registry_*.csv
+registry_*.json
+scrape_checkpoint*.json
+
+# Web build and dependency artifacts
+web/node_modules/
+web/.next/
+web/tsconfig.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db

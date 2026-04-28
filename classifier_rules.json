@@ -1,0 +1,50 @@
+{
+  "include_keyword_patterns": [
+    "\\bsoftware\\b",
+    "\\bsoftuer\\w*\\b",
+    "\\bsaas\\b",
+    "\\bweb\\b",
+    "\\bwebsite\\b",
+    "\\bfaqe\\s+web\\b",
+    "\\bhostim\\w*\\b",
+    "\\bhosting\\b",
+    "\\baplikacion\\w*\\b",
+    "\\bapplication\\w*\\b",
+    "\\bplatform\\w*\\b",
+    "\\bportal\\w*\\b",
+    "\\bdigital\\w*\\b",
+    "\\bdixhital\\w*\\b",
+    "\\binternet\\w*\\b",
+    "\\bcloud\\b",
+    "\\bcyber\\w*\\b",
+    "\\bantivirus\\b",
+    "\\bdatabaz\\w*\\b",
+    "\\bdatabase\\w*\\b",
+    "\\bprogram\\w*\\b",
+    "\\bzhvillim\\w*\\b",
+    "\\bmirembajtje\\s+(?:te\\s+)?software\\b",
+    "\\bteknologji\\w*\\s+te\\s+informacionit\\b",
+    "\\binformatik\\w*\\b",
+    "\\bit\\b"
+  ],
+  "include_cpv_prefixes": ["48", "72", "5031", "50312", "5032"],
+  "exclude_keyword_patterns": [
+    "\\briparim\\w*\\b",
+    "\\bmirembajtje\\s+dhe\\s+riparim\\b",
+    "\\bkompjuter\\w*\\b",
+    "\\bpajisje\\w*\\s+kompjuter\\w*\\b",
+    "\\bhardware\\b",
+    "\\bprinter\\w*\\b",
+    "\\blaptop\\w*\\b",
+    "\\bserver\\w*\\b"
+  ],
+  "exclude_cpv_prefixes": ["5030", "5031", "5032"],
+  "near_miss_keyword_patterns": [
+    "\\bsistem\\w*\\b",
+    "\\belektronik\\w*\\b",
+    "\\bautomatiz\\w*\\b",
+    "\\brrjet\\w*\\b",
+    "\\bteknologji\\b"
+  ],
+  "near_miss_cpv_prefixes": ["302", "324", "325", "480", "722"]
+}
