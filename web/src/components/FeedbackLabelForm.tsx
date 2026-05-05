@@ -1,15 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type LabelValue = "relevant" | "not_relevant" | "maybe";
 
-export function FeedbackLabelForm({ tenderId }: { tenderId: number }) {
-  const [label, setLabel] = useState<LabelValue>("relevant");
-  const [reviewer, setReviewer] = useState("");
-  const [note, setNote] = useState("");
+type SavedLabel = {
+  id: number;
+  label: LabelValue;
+  reviewer: string | null;
+  note: string | null;
+  timestamp: string;
+};
+
+export function FeedbackLabelForm({
+  tenderId,
+  loadLatestOnMount = false,
+  initialLabel = null,
+}: {
+  tenderId: number;
+  loadLatestOnMount?: boolean;
+  initialLabel?: {
+    label: LabelValue;
+    reviewer: string | null;
+    note: string | null;
+    timestamp: string;
+  } | null;
+}) {
+  const [label, setLabel] = useState<LabelValue>(initialLabel?.label ?? "relevant");
+  const [reviewer, setReviewer] = useState(initialLabel?.reviewer ?? "");
+  const [note, setNote] = useState(initialLabel?.note ?? "");
   const [status, setStatus] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [loadingLatest, setLoadingLatest] = useState(loadLatestOnMount);
+
+  useEffect(() => {
+    if (loadLatestOnMount) return;
+    setLabel(initialLabel?.label ?? "relevant");
+    setReviewer(initialLabel?.reviewer ?? "");
+    setNote(initialLabel?.note ?? "");
+  }, [initialLabel, loadLatestOnMount]);
+
+  useEffect(() => {
+    if (!loadLatestOnMount) {
+      setLoadingLatest(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/tenders/${tenderId}/labels?limit=1`);
+        if (!res.ok) return;
+        const body = (await res.json()) as { items?: SavedLabel[] };
+        const latest = Array.isArray(body.items) ? body.items[0] : undefined;
+        if (!latest || cancelled) return;
+        setLabel(latest.label);
+        setReviewer(latest.reviewer ?? "");
+        setNote(latest.note ?? "");
+      } catch {
+        // Ignore load errors and keep defaults.
+      } finally {
+        if (!cancelled) setLoadingLatest(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenderId, loadLatestOnMount]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,7 +114,6 @@ export function FeedbackLabelForm({ tenderId }: { tenderId: number }) {
             type="text"
             value={reviewer}
             onChange={(e) => setReviewer(e.target.value)}
-            placeholder="optional"
           />
         </label>
       </div>
@@ -68,11 +123,10 @@ export function FeedbackLabelForm({ tenderId }: { tenderId: number }) {
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="optional context"
         />
       </label>
       <div className="row" style={{ marginTop: 6 }}>
-        <button type="submit" disabled={submitting}>
+        <button type="submit" disabled={submitting || loadingLatest}>
           {submitting ? "Saving..." : "Save label"}
         </button>
         {status && <span className="meta">{status}</span>}

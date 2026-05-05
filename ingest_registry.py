@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -101,11 +102,70 @@ def row_publication_date(row: dict[str, str]) -> date | None:
         return None
 
 
-def row_in_daily_window(row: dict[str, str], d0: date, d1: date) -> bool:
+def parse_publication_time(raw: str) -> tuple[int, int] | None:
+    txt = (raw or "").strip()
+    if not txt:
+        return None
+    m = re.search(r"(\d{1,2})\s*[:.]\s*(\d{2})", txt)
+    if not m:
+        return None
+    hh, mm = int(m.group(1)), int(m.group(2))
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        return None
+    return hh, mm
+
+
+def row_publication_datetime(row: dict[str, str]) -> datetime | None:
     pd = row_publication_date(row)
     if pd is None:
+        return None
+    tm = parse_publication_time(row.get("ora_publikimit", ""))
+    if tm is None:
+        # Keep deterministic ordering if hour/minute is unavailable.
+        return datetime(pd.year, pd.month, pd.day, 0, 0, 0)
+    return datetime(pd.year, pd.month, pd.day, tm[0], tm[1], 0)
+
+
+def row_in_datetime_window(
+    row: dict[str, str],
+    *,
+    lower: datetime,
+    upper: datetime,
+) -> bool:
+    pdt = row_publication_datetime(row)
+    if pdt is None:
         return False
-    return pd == d0 or pd == d1
+    return lower <= pdt <= upper
+
+
+def latest_recorded_publication_datetime(
+    conn: Any,
+    target_year: str,
+) -> datetime | None:
+    rows = conn.execute(
+        """
+        SELECT data_iso, ora_publikimit
+        FROM tenders
+        WHERE viti = ? AND TRIM(COALESCE(data_iso, '')) <> ''
+        ORDER BY data_iso DESC, id DESC
+        LIMIT 1000
+        """,
+        (target_year,),
+    ).fetchall()
+    latest: datetime | None = None
+    for r in rows:
+        data_iso = (r["data_iso"] or "").strip()
+        if not data_iso:
+            continue
+        try:
+            d = date.fromisoformat(data_iso)
+        except ValueError:
+            continue
+        tm = parse_publication_time(r["ora_publikimit"] or "")
+        candidate = datetime(d.year, d.month, d.day, *(tm or (0, 0)), 0)
+        if latest is None or candidate > latest:
+            latest = candidate
+    return latest
 
 
 def filter_bootstrap(row: dict[str, str], target_year: str) -> bool:
@@ -115,7 +175,7 @@ def filter_bootstrap(row: dict[str, str], target_year: str) -> bool:
 def filter_daily(row: dict[str, str], target_year: str, today: date, yesterday: date) -> bool:
     if not filter_bootstrap(row, target_year):
         return False
-    return row_in_daily_window(row, today, yesterday)
+    return row_publication_date(row) in (today, yesterday)
 
 
 def run_ingest(
@@ -135,13 +195,13 @@ def run_ingest(
         except Exception:
             today = date.today()
     yesterday = today - timedelta(days=1)
+    try:
+        now_dt = datetime.now(ZoneInfo(tz_name)).replace(tzinfo=None)
+    except Exception:
+        now_dt = datetime.now()
 
     summary = RunSummary(mode=mode, target_year=target_year)
-    summary.extra["publication_window"] = {
-        "timezone": tz_name,
-        "today": today.isoformat(),
-        "yesterday": yesterday.isoformat(),
-    }
+    summary.extra["publication_window"] = {"timezone": tz_name}
 
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -154,14 +214,37 @@ def run_ingest(
     consecutive_empty_daily = 0
     row_filter: Callable[[dict[str, str]], bool]
 
-    if mode == "bootstrap":
-        row_filter = lambda r: filter_bootstrap(r, target_year)
-    elif mode == "daily":
-        row_filter = lambda r: filter_daily(r, target_year, today, yesterday)
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
-
     with db_session(db_path) as conn:
+        row_filter: Callable[[dict[str, str]], bool]
+        daily_lower_bound: datetime | None = None
+        if mode == "bootstrap":
+            row_filter = lambda r: filter_bootstrap(r, target_year)
+        elif mode == "daily":
+            daily_lower_bound = latest_recorded_publication_datetime(conn, target_year)
+            if daily_lower_bound is None:
+                # Fallback for first daily run on empty DB/year partition.
+                summary.extra["publication_window"].update(
+                    {
+                        "mode": "fallback_today_yesterday",
+                        "today": today.isoformat(),
+                        "yesterday": yesterday.isoformat(),
+                    }
+                )
+                row_filter = lambda r: filter_daily(r, target_year, today, yesterday)
+            else:
+                summary.extra["publication_window"].update(
+                    {
+                        "mode": "dynamic_last_record_to_now",
+                        "lower_bound": daily_lower_bound.isoformat(timespec="minutes"),
+                        "upper_bound": now_dt.isoformat(timespec="minutes"),
+                    }
+                )
+                row_filter = lambda r: filter_bootstrap(r, target_year) and row_in_datetime_window(
+                    r, lower=daily_lower_bound, upper=now_dt
+                )
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
         run_id = start_run(conn, mode, target_year)
         try:
             while True:
@@ -229,7 +312,7 @@ def main() -> None:
     ap.add_argument(
         "--mode",
         choices=("bootstrap", "daily"),
-        help="bootstrap: all rows for --year; daily: today + yesterday only",
+        help="bootstrap: all rows for --year; daily: dynamic window from latest DB publication datetime to now",
     )
     ap.add_argument("--db", default="registry.db", help="SQLite database path")
     ap.add_argument("--year", default="2026", help="Target viti filter")
@@ -240,12 +323,12 @@ def main() -> None:
         "--stale-pages",
         type=int,
         default=3,
-        help="Daily mode: stop after this many consecutive pages with no today/yesterday rows",
+        help="Daily mode: stop after this many consecutive pages with no rows in the active publication window",
     )
     ap.add_argument(
         "--tz",
         default="Europe/Tirane",
-        help="IANA timezone for daily mode 'today' / 'yesterday' (default: Europe/Tirane)",
+        help="IANA timezone used to derive the daily upper time bound (default: Europe/Tirane)",
     )
     ap.add_argument(
         "--export-csv",

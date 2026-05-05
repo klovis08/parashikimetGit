@@ -89,7 +89,7 @@ export default async function TenderDetailPage({
         )}
       </p>
       <div className="panel">
-        <FeedbackLabelForm tenderId={id} />
+        <FeedbackLabelForm tenderId={id} loadLatestOnMount />
       </div>
 
       <div className="panel">

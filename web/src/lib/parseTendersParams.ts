@@ -3,6 +3,7 @@ import type { ConfidenceTier } from "./registryClassifier";
 
 const PAGE_SIZE_DEFAULT = 25;
 const PAGE_SIZE_MAX = 100;
+const REVIEWER_FILTER_MAX = 120;
 
 export interface ParsedTendersQuery {
   ok: true;
@@ -64,6 +65,12 @@ export function parseTendersSearchParams(
   const q = sp.get("q") ?? undefined;
   const authority = sp.get("authority") ?? undefined;
   const cpv = sp.get("cpv") ?? undefined;
+  const kohaZhvillimit = sp.get("koha_zhvillimit") ?? undefined;
+  const reviewerRaw = sp.get("reviewer");
+  const reviewer =
+    reviewerRaw == null || reviewerRaw.trim() === ""
+      ? undefined
+      : reviewerRaw.trim().slice(0, REVIEWER_FILTER_MAX);
 
   const softwareRaw = parseSoftware(sp.get("software"));
   if (isParseError(softwareRaw)) return softwareRaw;
@@ -95,6 +102,8 @@ export function parseTendersSearchParams(
       q,
       authority,
       cpv,
+      kohaZhvillimit,
+      reviewer,
       software: softwareRaw,
       page,
       pageSize,

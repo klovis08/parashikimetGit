@@ -31,6 +31,14 @@ export interface AnalystLabelRecord {
   };
 }
 
+export interface LatestLabelSummary {
+  tender_id: number;
+  label: AnalystLabelValue;
+  reviewer: string | null;
+  note: string | null;
+  timestamp: string;
+}
+
 export { parseLabelPayload, type LabelPayload };
 
 function getWritableDb(): Database.Database {
@@ -175,6 +183,49 @@ export function getLabelsForTender(tenderId: number, limit = 20): AnalystLabelRe
         },
       };
     });
+  } finally {
+    db.close();
+  }
+}
+
+export function getLatestLabelsForTenders(
+  tenderIds: number[],
+): Record<number, LatestLabelSummary> {
+  const uniqIds = Array.from(new Set(tenderIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (uniqIds.length === 0) return {};
+  const db = getWritableDb();
+  try {
+    ensureLabelSchema(db);
+    const placeholders = uniqIds.map(() => "?").join(", ");
+    const rows = db
+      .prepare(
+        `
+        SELECT
+          l.tender_id, l.label, l.reviewer, l.note, l.created_at
+        FROM analyst_labels l
+        WHERE l.tender_id IN (${placeholders})
+          AND l.id = (
+            SELECT l2.id
+            FROM analyst_labels l2
+            WHERE l2.tender_id = l.tender_id
+            ORDER BY l2.created_at DESC, l2.id DESC
+            LIMIT 1
+          )
+      `,
+      )
+      .all(...uniqIds) as Array<Record<string, unknown>>;
+    const out: Record<number, LatestLabelSummary> = {};
+    for (const r of rows) {
+      const tenderId = Number(r.tender_id);
+      out[tenderId] = {
+        tender_id: tenderId,
+        label: String(r.label) as AnalystLabelValue,
+        reviewer: r.reviewer ? String(r.reviewer) : null,
+        note: r.note ? String(r.note) : null,
+        timestamp: String(r.created_at),
+      };
+    }
+    return out;
   } finally {
     db.close();
   }

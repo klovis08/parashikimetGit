@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types tests/**/*.test.ts"
   },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "next": "^15.1.0",

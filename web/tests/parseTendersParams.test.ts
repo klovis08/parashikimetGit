@@ -7,6 +7,8 @@ test("parseTendersSearchParams parses valid filters", () => {
     q: "software",
     authority: "AK",
     cpv: "72",
+    koha_zhvillimit: "prill",
+    reviewer: "ana",
     software: "strict",
     page: "2",
     pageSize: "50",
@@ -16,6 +18,8 @@ test("parseTendersSearchParams parses valid filters", () => {
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.equal(parsed.value.software, "strict");
+  assert.equal(parsed.value.kohaZhvillimit, "prill");
+  assert.equal(parsed.value.reviewer, "ana");
   assert.equal(parsed.value.page, 2);
   assert.equal(parsed.value.pageSize, 50);
   assert.equal(parsed.value.sort, "publication_asc");
@@ -55,4 +59,12 @@ test("parseTendersSearchParams rejects invalid confidence filter", () => {
   const sp = new URLSearchParams({ confidence: "urgent" });
   const parsed = parseTendersSearchParams(sp);
   assert.equal(parsed.ok, false);
+});
+
+test("parseTendersSearchParams omits reviewer when blank", () => {
+  const sp = new URLSearchParams({ reviewer: "   " });
+  const parsed = parseTendersSearchParams(sp);
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.reviewer, undefined);
 });

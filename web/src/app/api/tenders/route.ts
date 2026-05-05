@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbAvailabilityDetails } from "@/lib/db";
+import { getLatestLabelsForTenders } from "@/lib/feedbackLabels";
 import { parseTendersSearchParams } from "@/lib/parseTendersParams";
 import { queryTendersPage } from "@/lib/queryTenders";
 
@@ -29,12 +30,16 @@ export async function GET(req: Request) {
 
   try {
     const result = queryTendersPage(parsed.value);
+    const latestByTenderId = getLatestLabelsForTenders(result.items.map((item) => item.id));
     const pageCount = Math.max(
       1,
       Math.ceil(result.total / result.pageSize),
     );
     return NextResponse.json({
-      items: result.items,
+      items: result.items.map((item) => ({
+        ...item,
+        latestLabel: latestByTenderId[item.id] ?? null,
+      })),
       page: result.page,
       pageSize: result.pageSize,
       total: result.total,
@@ -44,6 +49,8 @@ export async function GET(req: Request) {
         q: parsed.value.q ?? null,
         authority: parsed.value.authority ?? null,
         cpv: parsed.value.cpv ?? null,
+        koha_zhvillimit: parsed.value.kohaZhvillimit ?? null,
+        reviewer: parsed.value.reviewer ?? null,
         software: parsed.value.software,
         confidence: parsed.value.confidence ?? null,
       },

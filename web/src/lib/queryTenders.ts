@@ -15,6 +15,9 @@ export interface TendersQuery {
   q?: string;
   authority?: string;
   cpv?: string;
+  kohaZhvillimit?: string;
+  /** Substring match against reviewer on the tender's latest analyst label */
+  reviewer?: string;
   software: SoftwareFilterMode;
   page: number;
   pageSize: number;
@@ -68,8 +71,41 @@ function buildWhereClause(query: TendersQuery): { sql: string; params: unknown[]
     params.push(lit);
   }
 
+  if (query.kohaZhvillimit?.trim()) {
+    const lit = `%${escapeLikeLiteral(query.kohaZhvillimit.trim())}%`;
+    parts.push(`koha_zhvillimit LIKE ? ESCAPE '\\'`);
+    params.push(lit);
+  }
+
+  if (query.reviewer?.trim()) {
+    const lit = `%${escapeLikeLiteral(query.reviewer.trim())}%`;
+    parts.push(
+      `EXISTS (
+        SELECT 1 FROM analyst_labels l
+        WHERE l.tender_id = tenders.id
+          AND l.id = (
+            SELECT l2.id FROM analyst_labels l2
+            WHERE l2.tender_id = tenders.id
+            ORDER BY l2.created_at DESC, l2.id DESC
+            LIMIT 1
+          )
+          AND l.reviewer LIKE ? ESCAPE '\\'
+      )`,
+    );
+    params.push(lit);
+  }
+
   const whereSql = parts.length ? `WHERE ${parts.join(" AND ")}` : "";
   return { sql: whereSql, params };
+}
+
+function analystLabelsTableExists(db: ReturnType<typeof getDb>): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'analyst_labels' LIMIT 1`,
+    )
+    .get() as { ok: number } | undefined;
+  return row != null;
 }
 
 export interface TendersPageResult {
@@ -111,6 +147,15 @@ export function compareSoftwarePriority(
 
 export function queryTendersPage(query: TendersQuery): TendersPageResult {
   const db = getDb();
+  if (query.reviewer?.trim() && !analystLabelsTableExists(db)) {
+    return {
+      items: [],
+      total: 0,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort: query.sort,
+    };
+  }
   const { sql: whereSql, params: whereParams } = buildWhereClause(query);
   const orderSql = ORDER_SQL[query.sort];
 

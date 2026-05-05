@@ -17,6 +17,12 @@ type TenderItem = {
     confidence: "high" | "medium" | "low";
     topSignals: string[];
   };
+  latestLabel?: {
+    label: "relevant" | "not_relevant" | "maybe";
+    reviewer: string | null;
+    note: string | null;
+    timestamp: string;
+  } | null;
 };
 
 type ListResponse = {
@@ -30,6 +36,8 @@ type ListResponse = {
     q: string | null;
     authority: string | null;
     cpv: string | null;
+    koha_zhvillimit: string | null;
+    reviewer: string | null;
     software: string;
     confidence: string | null;
   };
@@ -52,6 +60,8 @@ export function SearchHome() {
   const [q, setQ] = useState("");
   const [authority, setAuthority] = useState("");
   const [cpv, setCpv] = useState("");
+  const [kohaZhvillimit, setKohaZhvillimit] = useState("");
+  const [reviewer, setReviewer] = useState("");
   const [software, setSoftware] = useState<"none" | "broad" | "strict" | "near_miss">(
     "none",
   );
@@ -70,6 +80,8 @@ export function SearchHome() {
       q: string;
       authority: string;
       cpv: string;
+      kohaZhvillimit: string;
+      reviewer: string;
       software: "none" | "broad" | "strict" | "near_miss";
       confidence: "any" | "high" | "medium" | "low";
       sort: "newest" | "oldest";
@@ -81,6 +93,10 @@ export function SearchHome() {
       if (opts.q.trim()) sp.set("q", opts.q.trim());
       if (opts.authority.trim()) sp.set("authority", opts.authority.trim());
       if (opts.cpv.trim()) sp.set("cpv", opts.cpv.trim());
+      if (opts.kohaZhvillimit.trim()) {
+        sp.set("koha_zhvillimit", opts.kohaZhvillimit.trim());
+      }
+      if (opts.reviewer.trim()) sp.set("reviewer", opts.reviewer.trim());
       if (opts.software !== "none") sp.set("software", opts.software);
       if (opts.confidence !== "any") sp.set("confidence", opts.confidence);
       sp.set("sort", opts.sort);
@@ -110,6 +126,8 @@ export function SearchHome() {
       q: "",
       authority: "",
       cpv: "",
+      kohaZhvillimit: "",
+      reviewer: "",
       software: "none",
       confidence: "any",
       sort: "newest",
@@ -135,11 +153,31 @@ export function SearchHome() {
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    void runFetch({ q, authority, cpv, software, confidence, sort, page: 1 });
+    void runFetch({
+      q,
+      authority,
+      cpv,
+      kohaZhvillimit,
+      reviewer,
+      software,
+      confidence,
+      sort,
+      page: 1,
+    });
   };
 
   const goPage = (p: number) => {
-    void runFetch({ q, authority, cpv, software, confidence, sort, page: p });
+    void runFetch({
+      q,
+      authority,
+      cpv,
+      kohaZhvillimit,
+      reviewer,
+      software,
+      confidence,
+      sort,
+      page: p,
+    });
   };
 
   return (
@@ -186,7 +224,25 @@ export function SearchHome() {
                 type="text"
                 value={cpv}
                 onChange={(e) => setCpv(e.target.value)}
-                placeholder="prefiks / kod"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Muaji (koha_zhvillimit)
+              <input
+                type="text"
+                value={kohaZhvillimit}
+                onChange={(e) => setKohaZhvillimit(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Reviewer
+              <input
+                type="text"
+                value={reviewer}
+                onChange={(e) => setReviewer(e.target.value)}
+                placeholder="p.sh. emri i analistit"
                 autoComplete="off"
               />
             </label>
@@ -282,7 +338,11 @@ export function SearchHome() {
                   )}
                 </p>
               )}
-              <FeedbackLabelForm tenderId={t.id} />
+              <FeedbackLabelForm
+                tenderId={t.id}
+                loadLatestOnMount={false}
+                initialLabel={t.latestLabel ?? null}
+              />
             </article>
           ))}
 
