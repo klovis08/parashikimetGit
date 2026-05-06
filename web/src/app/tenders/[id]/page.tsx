@@ -36,16 +36,28 @@ const LABELS: Record<string, string> = {
 
 export default async function TenderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const resolvedSearchParams = await searchParams;
+  const backSearch = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (typeof value === "string" && value.trim() !== "") {
+      backSearch.set(key, value);
+    }
+  }
+  const backSearchText = backSearch.toString();
+  const backHref = backSearchText ? `/?${backSearchText}` : "/";
+
   if (!dbAvailable()) {
     return (
       <main>
         <p className="err">
           Baza e të dhënave nuk lexohet. Vendos REGISTRY_DB_PATH në mjedis.
         </p>
-        <Link href="/">← Kthehu</Link>
+        <Link href={backHref}>← Kthehu</Link>
       </main>
     );
   }
@@ -74,7 +86,7 @@ export default async function TenderDetailPage({
 
   return (
     <main>
-      <Link href="/" className="back">
+      <Link href={backHref} className="back">
         ← Kërkim
       </Link>
       <h1>{String(row.objekti_procedurave ?? "")}</h1>

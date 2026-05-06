@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FeedbackLabelForm } from "./FeedbackLabelForm";
 
 type TenderItem = {
@@ -50,6 +51,18 @@ type Stats = {
   near_miss: number;
 };
 
+type SearchOpts = {
+  q: string;
+  authority: string;
+  cpv: string;
+  kohaZhvillimit: string;
+  reviewer: string;
+  software: "none" | "broad" | "strict" | "near_miss";
+  confidence: "any" | "high" | "medium" | "low";
+  sort: "newest" | "oldest";
+  page: number;
+};
+
 function truncateCpv(raw: string, max = 96): string {
   const t = (raw ?? "").replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
@@ -57,17 +70,50 @@ function truncateCpv(raw: string, max = 96): string {
 }
 
 export function SearchHome() {
-  const [q, setQ] = useState("");
-  const [authority, setAuthority] = useState("");
-  const [cpv, setCpv] = useState("");
-  const [kohaZhvillimit, setKohaZhvillimit] = useState("");
-  const [reviewer, setReviewer] = useState("");
-  const [software, setSoftware] = useState<"none" | "broad" | "strict" | "near_miss">(
-    "none",
-  );
-  const [sort, setSort] = useState<"newest" | "oldest">("newest");
-  const [confidence, setConfidence] = useState<"any" | "high" | "medium" | "low">("any");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const initialQ = searchParams.get("q") ?? "";
+  const initialAuthority = searchParams.get("authority") ?? "";
+  const initialCpv = searchParams.get("cpv") ?? "";
+  const initialKohaZhvillimit = searchParams.get("koha_zhvillimit") ?? "";
+  const initialReviewer = searchParams.get("reviewer") ?? "";
+  const initialSoftware: SearchOpts["software"] = (() => {
+    const raw = searchParams.get("software");
+    return raw === "broad" || raw === "strict" || raw === "near_miss" ? raw : "none";
+  })();
+  const initialSort: SearchOpts["sort"] = searchParams.get("sort") === "oldest" ? "oldest" : "newest";
+  const initialConfidence: SearchOpts["confidence"] = (() => {
+    const raw = searchParams.get("confidence");
+    return raw === "high" || raw === "medium" || raw === "low" ? raw : "any";
+  })();
+  const initialPage = (() => {
+    const n = Number(searchParams.get("page") ?? "1");
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  })();
+
+  const [q, setQ] = useState(initialQ);
+  const [authority, setAuthority] = useState(initialAuthority);
+  const [cpv, setCpv] = useState(initialCpv);
+  const [kohaZhvillimit, setKohaZhvillimit] = useState(initialKohaZhvillimit);
+  const [reviewer, setReviewer] = useState(initialReviewer);
+  const [software, setSoftware] = useState<"none" | "broad" | "strict" | "near_miss">(initialSoftware);
+  const [sort, setSort] = useState<"newest" | "oldest">(initialSort);
+  const [confidence, setConfidence] = useState<"any" | "high" | "medium" | "low">(initialConfidence);
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [pageSize] = useState(25);
+  const initialFetchParamsRef = useRef<SearchOpts>({
+    q: initialQ,
+    authority: initialAuthority,
+    cpv: initialCpv,
+    kohaZhvillimit: initialKohaZhvillimit,
+    reviewer: initialReviewer,
+    software: initialSoftware,
+    confidence: initialConfidence,
+    sort: initialSort,
+    page: initialPage,
+  });
 
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,20 +121,8 @@ export function SearchHome() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsErr, setStatsErr] = useState<string | null>(null);
 
-  const runFetch = useCallback(
-    async (opts: {
-      q: string;
-      authority: string;
-      cpv: string;
-      kohaZhvillimit: string;
-      reviewer: string;
-      software: "none" | "broad" | "strict" | "near_miss";
-      confidence: "any" | "high" | "medium" | "low";
-      sort: "newest" | "oldest";
-      page: number;
-    }) => {
-      setLoading(true);
-      setError(null);
+  const buildParams = useCallback(
+    (opts: SearchOpts) => {
       const sp = new URLSearchParams();
       if (opts.q.trim()) sp.set("q", opts.q.trim());
       if (opts.authority.trim()) sp.set("authority", opts.authority.trim());
@@ -102,6 +136,18 @@ export function SearchHome() {
       sp.set("sort", opts.sort);
       sp.set("page", String(opts.page));
       sp.set("pageSize", String(pageSize));
+      return sp;
+    },
+    [pageSize],
+  );
+
+  const runFetch = useCallback(
+    async (opts: SearchOpts) => {
+      setLoading(true);
+      setError(null);
+      setCurrentPage(opts.page);
+      const sp = buildParams(opts);
+      router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
       try {
         const res = await fetch(`/api/tenders?${sp.toString()}`);
         const body = await res.json();
@@ -111,6 +157,7 @@ export function SearchHome() {
           return;
         }
         setData(body as ListResponse);
+        setCurrentPage((body as ListResponse).page);
       } catch {
         setData(null);
         setError("Network error");
@@ -118,21 +165,11 @@ export function SearchHome() {
         setLoading(false);
       }
     },
-    [pageSize],
+    [buildParams, pathname, router],
   );
 
   useEffect(() => {
-    void runFetch({
-      q: "",
-      authority: "",
-      cpv: "",
-      kohaZhvillimit: "",
-      reviewer: "",
-      software: "none",
-      confidence: "any",
-      sort: "newest",
-      page: 1,
-    });
+    void runFetch(initialFetchParamsRef.current);
   }, [runFetch]);
 
   useEffect(() => {
@@ -179,6 +216,32 @@ export function SearchHome() {
       page: p,
     });
   };
+
+  const detailSearchQuery = useMemo(() => {
+    return buildParams({
+      q,
+      authority,
+      cpv,
+      kohaZhvillimit,
+      reviewer,
+      software,
+      confidence,
+      sort,
+      page: data?.page ?? currentPage,
+    }).toString();
+  }, [
+    authority,
+    buildParams,
+    confidence,
+    cpv,
+    currentPage,
+    data?.page,
+    kohaZhvillimit,
+    q,
+    reviewer,
+    software,
+    sort,
+  ]);
 
   return (
     <>
@@ -311,7 +374,7 @@ export function SearchHome() {
           {data.items.map((t) => (
             <article key={t.id} className="card">
               <h2>
-                <Link href={`/tenders/${t.id}`}>{t.objekti_procedurave}</Link>
+                <Link href={`/tenders/${t.id}?${detailSearchQuery}`}>{t.objekti_procedurave}</Link>
               </h2>
               <p className="line">
                 <strong>Autoriteti:</strong> {t.autoriteti_kontraktues}
