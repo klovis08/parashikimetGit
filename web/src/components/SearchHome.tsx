@@ -51,6 +51,22 @@ type Stats = {
   near_miss: number;
 };
 
+type RunbookStatus = "idle" | "running" | "succeeded" | "failed";
+
+type RunbookState = {
+  id: string;
+  status: RunbookStatus;
+  command: string;
+  cwd: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  exitCode: number | null;
+  signal: string | null;
+  outputTail: string[];
+  message: string | null;
+  enabled: boolean;
+};
+
 type SearchOpts = {
   q: string;
   authority: string;
@@ -120,6 +136,9 @@ export function SearchHome() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsErr, setStatsErr] = useState<string | null>(null);
+  const [runbook, setRunbook] = useState<RunbookState | null>(null);
+  const [runbookErr, setRunbookErr] = useState<string | null>(null);
+  const [runbookBusy, setRunbookBusy] = useState(false);
 
   const buildParams = useCallback(
     (opts: SearchOpts) => {
@@ -188,6 +207,78 @@ export function SearchHome() {
     })();
   }, []);
 
+  const refreshRunbook = useCallback(async () => {
+    try {
+      const res = await fetch("/api/runbook");
+      const body = (await res.json()) as RunbookState;
+      if (!res.ok) {
+        setRunbookErr("Runbook status unavailable");
+        return;
+      }
+      setRunbook(body);
+      setRunbookErr(null);
+    } catch {
+      setRunbookErr("Runbook status unavailable");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRunbook();
+  }, [refreshRunbook]);
+
+  useEffect(() => {
+    if (runbook?.status !== "running") return;
+    const timer = window.setInterval(() => {
+      void refreshRunbook();
+    }, 5000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshRunbook, runbook?.status]);
+
+  const triggerRunbook = async () => {
+    setRunbookBusy(true);
+    setRunbookErr(null);
+    try {
+      const res = await fetch("/api/runbook", { method: "POST" });
+      const body = (await res.json()) as {
+        run?: RunbookState;
+        message?: string;
+      };
+      if (!res.ok) {
+        if (body.run) setRunbook(body.run);
+        setRunbookErr(body.message ?? "Runbook trigger failed");
+        return;
+      }
+      if (!body.run) {
+        setRunbookErr("Runbook trigger failed");
+        return;
+      }
+      setRunbook(body.run);
+    } catch {
+      setRunbookErr("Runbook trigger failed");
+    } finally {
+      setRunbookBusy(false);
+    }
+  };
+
+  const runbookMeta = useMemo(() => {
+    if (!runbook) return "...";
+    if (!runbook.enabled) {
+      return "trigger disabled.";
+    }
+    if (runbook.status === "running") {
+      return `executing (${runbook.startedAt ?? "tani"}).`;
+    }
+    if (runbook.status === "succeeded") {
+      return `success (${runbook.finishedAt ?? "pa timestamp"}).`;
+    }
+    if (runbook.status === "failed") {
+      return `failed (${runbook.finishedAt ?? "pa timestamp"}).`;
+    }
+    return "-";
+  }, [runbook]);
+
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     void runFetch({
@@ -245,6 +336,29 @@ export function SearchHome() {
 
   return (
     <>
+      <div className="panel">
+        <div className="row">
+          <button
+            type="button"
+            disabled={!runbook?.enabled || runbookBusy || runbook?.status === "running"}
+            onClick={() => {
+              void triggerRunbook();
+            }}
+          >
+            {runbookBusy || runbook?.status === "running"
+              ? "Runbook në progres…"
+              : "Run ingest/scrape manualisht"}
+          </button>
+        </div>
+        <p className="meta">{runbookMeta}</p>
+        {runbook?.message && <p className="meta">Detaj: {runbook.message}</p>}
+        {runbookErr && (
+          <p className="meta" style={{ color: "#8b1a1a" }}>
+            {runbookErr}
+          </p>
+        )}
+      </div>
+
       {stats && (
         <p className="sub">
           {stats.total.toLocaleString()} procedura në DB · software broad:{" "}

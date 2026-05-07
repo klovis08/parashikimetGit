@@ -1,8 +1,6 @@
 # Parashikimet Tender Pipeline
 
-Scraper + classification system for APP tender forecast posts.
-It stores unique procedures in SQLite and publishes software-focused exports
-for analyst review and downstream automation.
+Scraper + classification system
 
 ## Repository layout
 
@@ -48,6 +46,9 @@ npm run dev
 ```
 
 Set `REGISTRY_DB_PATH` to an absolute DB path (or use `web/.env.local`).
+To enable the homepage manual ingest/scrape button, set
+`ENABLE_MANUAL_RUNBOOK_TRIGGER=true` and configure
+`RUNBOOK_MANUAL_COMMAND` (plus optional `RUNBOOK_MANUAL_WORKDIR`).
 
 ## Test strategy (canonical commands)
 
@@ -70,9 +71,3 @@ npm run lint
 
 `pytest` is not required for this repository; Python tests are authored and run
 with `unittest`.
-
-## Production operations
-
-For deployment, scheduling, alerting, and runbook procedures, see:
-`ops/RUNBOOK.md`.
-
